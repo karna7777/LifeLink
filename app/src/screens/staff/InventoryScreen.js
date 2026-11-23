@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Card from '../../components/Card';
@@ -7,6 +7,8 @@ import ExpiryBadge from '../../components/ExpiryBadge';
 import EmptyState from '../../components/EmptyState';
 import Loader from '../../components/Loader';
 import { COLORS } from '../../utils/constants';
+import { useNetwork } from '../../context/NetworkContext';
+import { getCache, setCache } from '../../services/storage';
 import api from '../../services/api';
 
 // Build a readable label from a stock item.
@@ -17,20 +19,25 @@ export default function InventoryScreen({ navigation }) {
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState('all'); // all | blood | medicine
   const [loading, setLoading] = useState(true);
+  const { refreshKey } = useNetwork();
 
   const load = useCallback(async () => {
+    const cached = await getCache('inventory'); // show saved data immediately
+    if (cached) setItems(cached);
     try {
       const { data } = await api.get('/inventory');
       setItems(data);
+      await setCache('inventory', data);
     } catch (err) {
-      Alert.alert('Error', 'Could not load inventory.');
+      // offline / failed — keep the cached data
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Refetch every time the screen comes into focus (e.g. after adding an item).
+  // Refetch on focus, and on reconnect / app foreground.
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  useEffect(() => { load(); }, [refreshKey]);
 
   const shown = filter === 'all' ? items : items.filter((i) => i.itemType === filter);
 

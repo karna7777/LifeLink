@@ -30,3 +30,39 @@ export async function saveUser(user) {
 export async function clearAuth() {
   await AsyncStorage.multiRemove([KEYS.TOKEN, KEYS.USER]);
 }
+
+// --- Cache for list screens (so they show instantly + work offline) ---
+export async function setCache(key, value) {
+  try {
+    await AsyncStorage.setItem('cache:' + key, JSON.stringify(value));
+  } catch (e) {
+    // storage full / unavailable — ignore, it's only a cache
+  }
+}
+
+export async function getCache(key) {
+  try {
+    const raw = await AsyncStorage.getItem('cache:' + key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// --- Offline queue (actions created while offline, sent later) ---
+export async function getQueue() {
+  try {
+    const raw = await AsyncStorage.getItem('offlineQueue');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function setQueue(items) {
+  try {
+    await AsyncStorage.setItem('offlineQueue', JSON.stringify(items));
+  } catch (e) {
+    // ignore
+  }
+}

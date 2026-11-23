@@ -9,41 +9,52 @@ import { COLORS } from '../../utils/constants';
 import { API_URL } from '../../config';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
+import { useNetwork } from '../../context/NetworkContext';
+import { getCache, setCache } from '../../services/storage';
+import { enqueue } from '../../services/offlineQueue';
 import api from '../../services/api';
 
 const label = (r) => (r.itemType === 'blood' ? `${r.bloodGroup || ''} ${r.component || ''}`.trim() : r.medicineName);
 
 // Request detail: info, prescription, status history + actions, and a live chat thread.
+// Works offline: shows cached data, queues messages, and re-syncs on reconnect.
 export default function RequestDetailScreen({ route }) {
   const id = route.params?.id;
   const { user } = useAuth();
   const socket = useSocket();
+  const { online, refreshKey } = useNetwork();
   const [request, setRequest] = useState(null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
 
-  // Load the request and its chat history together.
+  // Load the request + chat: show cached data first, then refresh from the server.
   const load = useCallback(async () => {
+    const cachedReq = await getCache('request:' + id);
+    if (cachedReq) setRequest(cachedReq);
+    const cachedMsgs = await getCache('messages:' + id);
+    if (cachedMsgs) setMessages(cachedMsgs);
     try {
       const [reqRes, msgRes] = await Promise.all([api.get('/requests/' + id), api.get('/messages/' + id)]);
       setRequest(reqRes.data);
       setMessages(msgRes.data);
+      await setCache('request:' + id, reqRes.data);
+      await setCache('messages:' + id, msgRes.data);
     } catch (err) {
-      Alert.alert('Error', 'Could not load this request.');
+      // offline / failed — keep the cached data
     } finally {
       setLoading(false);
     }
   }, [id]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  useEffect(() => { load(); }, [refreshKey]); // refetch on reconnect / foreground
 
-  // Real-time: join this request's room and listen for new messages + status changes.
+  // Real-time: join the room, re-join + refetch after a reconnect, and listen for updates.
   useEffect(() => {
     if (!socket) return;
-    socket.emit('join_request', { requestId: id });
-
+    const joinAndReload = () => { socket.emit('join_request', { requestId: id }); load(); };
     const onMessage = (m) => {
       if (String(m.requestId) !== String(id)) return;
       setMessages((prev) => (prev.some((x) => x._id === m._id) ? prev : [...prev, m]));
@@ -52,15 +63,19 @@ export default function RequestDetailScreen({ route }) {
       if (String(s.requestId) !== String(id)) return;
       setRequest((prev) => (prev ? { ...prev, status: s.status } : prev));
     };
+
+    socket.emit('join_request', { requestId: id });
+    socket.on('connect', joinAndReload); // re-join + refetch after reconnecting
     socket.on('message:new', onMessage);
     socket.on('request:status', onStatus);
 
     return () => {
       socket.emit('leave_request', { requestId: id });
+      socket.off('connect', joinAndReload);
       socket.off('message:new', onMessage);
       socket.off('request:status', onStatus);
     };
-  }, [socket, id]);
+  }, [socket, id, load]);
 
   async function changeStatus(status) {
     setWorking(true);
@@ -78,11 +93,19 @@ export default function RequestDetailScreen({ route }) {
     if (!draft.trim()) return;
     const text = draft.trim();
     setDraft('');
+
+    // If offline, queue the message and show it as "sending…".
+    if (!online) {
+      await enqueue({ type: 'message', payload: { requestId: id, text } });
+      setMessages((prev) => [...prev, { _id: 'local-' + Date.now(), text, senderId: user?._id, pending: true }]);
+      return;
+    }
     try {
       await api.post('/messages/' + id, { text });
       // The message comes back over the socket and is added to the list.
     } catch (err) {
-      Alert.alert('Could not send', err.response?.data?.message || 'Please try again.');
+      await enqueue({ type: 'message', payload: { requestId: id, text } });
+      setMessages((prev) => [...prev, { _id: 'local-' + Date.now(), text, senderId: user?._id, pending: true }]);
     }
   }
 
@@ -143,6 +166,7 @@ export default function RequestDetailScreen({ route }) {
             <View key={m._id} style={[styles.bubble, mine(m) ? styles.mine : styles.theirs]}>
               {m.text ? <Text style={mine(m) ? styles.mineText : styles.theirsText}>{m.text}</Text> : null}
               {m.imageUrl ? <Image source={{ uri: API_URL + m.imageUrl }} style={styles.chatImage} /> : null}
+              {m.pending ? <Text style={styles.pending}>sending…</Text> : null}
             </View>
           ))
         )}
@@ -173,6 +197,7 @@ const styles = StyleSheet.create({
   theirs: { backgroundColor: COLORS.surface, alignSelf: 'flex-start' },
   mineText: { color: COLORS.white },
   theirsText: { color: COLORS.text },
+  pending: { color: COLORS.white, fontSize: 10, marginTop: 4, fontStyle: 'italic', opacity: 0.8 },
   chatImage: { width: 160, height: 160, borderRadius: 8, marginTop: 6 },
   inputBar: { flexDirection: 'row', padding: 12, borderTopWidth: 1, borderColor: COLORS.border, gap: 8, alignItems: 'center' },
   input: { flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, color: COLORS.text },

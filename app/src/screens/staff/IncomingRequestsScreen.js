@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Card from '../../components/Card';
@@ -6,6 +6,8 @@ import StatusBadge from '../../components/StatusBadge';
 import EmptyState from '../../components/EmptyState';
 import Loader from '../../components/Loader';
 import { COLORS } from '../../utils/constants';
+import { useNetwork } from '../../context/NetworkContext';
+import { getCache, setCache } from '../../services/storage';
 import api from '../../services/api';
 
 const label = (r) => (r.itemType === 'blood' ? `${r.bloodGroup || ''} ${r.component || ''}`.trim() : r.medicineName);
@@ -14,19 +16,24 @@ const label = (r) => (r.itemType === 'blood' ? `${r.bloodGroup || ''} ${r.compon
 export default function IncomingRequestsScreen({ navigation }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { refreshKey } = useNetwork();
 
   const load = useCallback(async () => {
+    const cached = await getCache('incoming'); // show saved data immediately
+    if (cached) setRequests(cached);
     try {
       const { data } = await api.get('/requests/incoming');
       setRequests(data);
+      await setCache('incoming', data);
     } catch (err) {
-      // leave empty on error
+      // offline / failed — keep the cached data
     } finally {
       setLoading(false);
     }
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  useEffect(() => { load(); }, [refreshKey]); // refetch on reconnect / foreground
 
   if (loading) return <Loader text="Loading requests…" />;
 
