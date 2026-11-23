@@ -9,17 +9,22 @@ import api from '../../services/api';
 
 const LOW_STOCK = 5; // quantity below this counts as "low stock"
 
-// Staff dashboard: facility name + verification status + live inventory counts.
+// Staff dashboard: facility name + verification status + live counts.
 export default function DashboardScreen() {
   const { user } = useAuth();
   const [facility, setFacility] = useState(null);
+  const [pending, setPending] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      // This endpoint returns the facility plus its inventory in one call.
-      const { data } = await api.get('/facilities/' + user.facilityId);
-      setFacility(data);
+      // Facility (with its inventory) and the incoming requests, in parallel.
+      const [facRes, reqRes] = await Promise.all([
+        api.get('/facilities/' + user.facilityId),
+        api.get('/requests/incoming'),
+      ]);
+      setFacility(facRes.data);
+      setPending(reqRes.data.filter((r) => r.status === 'pending').length);
     } catch (err) {
       Alert.alert('Error', 'Could not load your dashboard.');
     } finally {
@@ -37,7 +42,7 @@ export default function DashboardScreen() {
   const expired = inventory.filter((i) => getExpiryStatus(i.expiryDate).level === 'expired').length;
 
   const stats = [
-    { label: 'Pending requests', value: 0, color: COLORS.orange }, // wired in Phase 6
+    { label: 'Pending requests', value: pending, color: COLORS.orange },
     { label: 'Low stock items', value: lowStock, color: COLORS.red },
     { label: 'Expiring soon', value: expiringSoon, color: COLORS.orange },
     { label: 'Expired', value: expired, color: COLORS.red },

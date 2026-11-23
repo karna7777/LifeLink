@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Facility = require('../models/Facility');
+const Request = require('../models/Request');
 
 // GET /api/admin/facilities — every facility (newest first) for the admin to review.
 exports.listFacilities = async (req, res) => {
@@ -29,13 +30,13 @@ exports.verifyFacility = async (req, res) => {
 // GET /api/admin/stats — simple counts for the admin dashboard.
 exports.stats = async (req, res) => {
   try {
-    const [totalUsers, totalFacilities, verifiedFacilities] = await Promise.all([
+    const [totalUsers, totalFacilities, verifiedFacilities, totalRequests] = await Promise.all([
       User.countDocuments(),
       Facility.countDocuments(),
       Facility.countDocuments({ verified: true }),
+      Request.countDocuments(),
     ]);
-    // totalRequests is wired up once the Request model exists (Phase 6).
-    res.json({ totalUsers, totalFacilities, verifiedFacilities, totalRequests: 0 });
+    res.json({ totalUsers, totalFacilities, verifiedFacilities, totalRequests });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
