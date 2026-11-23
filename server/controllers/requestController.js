@@ -1,4 +1,6 @@
 const Request = require('../models/Request');
+const User = require('../models/User');
+const { notifyUser } = require('../utils/notify');
 
 // POST /api/requests  (user) — create a request, with an optional prescription image.
 exports.createRequest = async (req, res) => {
@@ -31,6 +33,12 @@ exports.createRequest = async (req, res) => {
 
     // Notify the facility's staff in real time about the new request.
     req.app.get('io').to('facility:' + facilityId).emit('request:new', request);
+
+    // Also save an in-app notification + push for each staff member of the facility.
+    const staff = await User.find({ facilityId, role: 'staff' }).select('_id');
+    for (const s of staff) {
+      await notifyUser(s._id, { title: 'New request', body: 'A patient sent a new request.', type: 'request', data: { requestId: String(request._id) } });
+    }
 
     res.status(201).json(request);
   } catch (err) {
@@ -92,6 +100,9 @@ exports.updateStatus = async (req, res) => {
     const io = req.app.get('io');
     io.to('user:' + request.userId).emit('request:status', { requestId: request._id, status });
     io.to('request:' + request._id).emit('request:status', { requestId: request._id, status });
+
+    // Notify the requester (in-app + push).
+    await notifyUser(request.userId, { title: 'Request ' + status, body: 'Your request is now ' + status + '.', type: 'request', data: { requestId: String(request._id) } });
 
     res.json(request);
   } catch (err) {

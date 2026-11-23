@@ -1,5 +1,7 @@
 const cron = require('node-cron');
 const Inventory = require('../models/Inventory');
+const User = require('../models/User');
+const { notifyUser } = require('../utils/notify');
 
 // Finds items that are expired or expiring within 7 days.
 // In Phase 8 this also sends Expo push notifications + saves Notification docs for staff.
@@ -13,6 +15,20 @@ async function runExpiryCheck() {
   const expiringSoon = items.length - expired;
 
   console.log(`[expiry] ${expired} expired, ${expiringSoon} expiring within 7 days`);
+
+  // Notify each facility's staff about their expiring/expired items.
+  const countByFacility = {};
+  for (const it of items) {
+    const key = String(it.facilityId);
+    countByFacility[key] = (countByFacility[key] || 0) + 1;
+  }
+  for (const facilityId of Object.keys(countByFacility)) {
+    const staff = await User.find({ facilityId, role: 'staff' }).select('_id');
+    for (const s of staff) {
+      await notifyUser(s._id, { title: 'Items expiring', body: `${countByFacility[facilityId]} item(s) expired or expiring soon.`, type: 'expiry', data: {} });
+    }
+  }
+
   return { expired, expiringSoon };
 }
 

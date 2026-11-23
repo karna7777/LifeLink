@@ -30,6 +30,8 @@ app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/search', require('./routes/search'));
 app.use('/api/requests', require('./routes/requests'));
 app.use('/api/messages', require('./routes/messages'));
+app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/broadcast', require('./routes/broadcast'));
 app.use('/api/admin', require('./routes/admin'));
 
 // Express and Socket.io must share one HTTP server so they run on the same port.

@@ -1,5 +1,7 @@
 const Message = require('../models/Message');
 const Request = require('../models/Request');
+const User = require('../models/User');
+const { notifyUser } = require('../utils/notify');
 
 // Only the request's owner or the facility's staff may read/write its chat.
 function canAccess(request, user) {
@@ -37,6 +39,17 @@ exports.sendMessage = async (req, res) => {
 
     // Push the new message to everyone currently viewing this request.
     req.app.get('io').to('request:' + req.params.requestId).emit('message:new', message);
+
+    // Notify the other party (in-app + push).
+    const notifyText = text || 'Sent an image';
+    if (String(req.user._id) === String(request.userId)) {
+      // The patient sent it -> notify the facility staff.
+      const staff = await User.find({ facilityId: request.facilityId, role: 'staff' }).select('_id');
+      for (const s of staff) await notifyUser(s._id, { title: 'New message', body: notifyText, type: 'message', data: { requestId: String(request._id) } });
+    } else {
+      // Staff sent it -> notify the patient.
+      await notifyUser(request.userId, { title: 'New message', body: notifyText, type: 'message', data: { requestId: String(request._id) } });
+    }
 
     res.status(201).json(message);
   } catch (err) {

@@ -1,4 +1,4 @@
-import { Text } from 'react-native';
+import { Text, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -28,7 +28,18 @@ const tabIcon = (emoji) => () => <Text style={{ fontSize: 18 }}>{emoji}</Text>;
 function HomeStack() {
   return (
     <Stack.Navigator screenOptions={headerOptions}>
-      <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'LifeLink' }} />
+      <Stack.Screen
+        name="Home"
+        component={HomeScreen}
+        options={({ navigation }) => ({
+          title: 'LifeLink',
+          headerRight: () => (
+            <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
+              <Text style={{ fontSize: 18 }}>🔔</Text>
+            </TouchableOpacity>
+          ),
+        })}
+      />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
     </Stack.Navigator>
   );

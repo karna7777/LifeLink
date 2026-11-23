@@ -1,4 +1,4 @@
-import { Text } from 'react-native';
+import { Text, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -9,6 +9,7 @@ import IncomingRequestsScreen from '../screens/staff/IncomingRequestsScreen';
 import BroadcastScreen from '../screens/staff/BroadcastScreen';
 import FacilitySetupScreen from '../screens/staff/FacilitySetupScreen';
 import RequestDetailScreen from '../screens/shared/RequestDetailScreen';
+import NotificationsScreen from '../screens/shared/NotificationsScreen';
 import { COLORS } from '../utils/constants';
 
 const Tab = createBottomTabNavigator();
@@ -25,7 +26,18 @@ const tabIcon = (emoji) => () => <Text style={{ fontSize: 18 }}>{emoji}</Text>;
 function DashboardStack() {
   return (
     <Stack.Navigator screenOptions={headerOptions}>
-      <Stack.Screen name="Dashboard" component={DashboardScreen} />
+      <Stack.Screen
+        name="Dashboard"
+        component={DashboardScreen}
+        options={({ navigation }) => ({
+          headerRight: () => (
+            <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
+              <Text style={{ fontSize: 18 }}>🔔</Text>
+            </TouchableOpacity>
+          ),
+        })}
+      />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
     </Stack.Navigator>
   );
 }
