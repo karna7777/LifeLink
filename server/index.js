@@ -25,6 +25,8 @@ app.get('/api/health', (req, res) => {
 // --- API routes (more are mounted in later phases) ---
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/facilities', require('./routes/facilities'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Express and Socket.io must share one HTTP server so they run on the same port.
 const server = http.createServer(app);

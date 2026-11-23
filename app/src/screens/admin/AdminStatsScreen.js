@@ -1,23 +1,44 @@
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, ScrollView, Alert, StyleSheet } from 'react-native';
 import Button from '../../components/Button';
+import Loader from '../../components/Loader';
 import { COLORS } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
+import api from '../../services/api';
 
-// Admin overview stats. Real counts arrive from /admin/stats in Phase 3.
-const STATS = [
-  { label: 'Total users', value: 128 },
-  { label: 'Facilities', value: 14 },
-  { label: 'Verified facilities', value: 9 },
-  { label: 'Total requests', value: 342 },
-];
-
+// Admin overview stats from /admin/stats.
 export default function AdminStatsScreen() {
   const { logout } = useAuth();
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await api.get('/admin/stats');
+        setStats(data);
+      } catch (err) {
+        Alert.alert('Error', 'Could not load stats.');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) return <Loader text="Loading stats…" />;
+
+  const items = [
+    { label: 'Total users', value: stats?.totalUsers ?? 0 },
+    { label: 'Facilities', value: stats?.totalFacilities ?? 0 },
+    { label: 'Verified facilities', value: stats?.verifiedFacilities ?? 0 },
+    { label: 'Total requests', value: stats?.totalRequests ?? 0 },
+  ];
+
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
       <Text style={styles.title}>Platform stats</Text>
       <View style={styles.grid}>
-        {STATS.map((s) => (
+        {items.map((s) => (
           <View key={s.label} style={styles.card}>
             <Text style={styles.value}>{s.value}</Text>
             <Text style={styles.label}>{s.label}</Text>
