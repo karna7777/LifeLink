@@ -3,12 +3,12 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-nati
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import { COLORS, FACILITY_TYPES } from '../../utils/constants';
-import { useDevAuth } from '../../navigation/RootNavigator';
+import { useAuth } from '../../context/AuthContext';
 
 // Staff facility details. Doubles as the staff "Profile" tab.
 // Creating/updating a facility (and admin verification) is wired up in Phase 3.
 export default function FacilitySetupScreen() {
-  const { setRole } = useDevAuth();
+  const { logout } = useAuth();
   const [name, setName] = useState('City Hospital');
   const [type, setType] = useState('hospital');
   const [address, setAddress] = useState('MG Road, Bengaluru');
@@ -34,7 +34,7 @@ export default function FacilitySetupScreen() {
       <Input label="Phone" value={phone} onChangeText={setPhone} placeholder="Contact number" keyboardType="phone-pad" />
 
       <Button title="Save facility" style={{ marginTop: 10 }} onPress={() => {}} />
-      <Button title="Logout" variant="outline" style={{ marginTop: 10 }} onPress={() => setRole(null)} />
+      <Button title="Logout" variant="outline" style={{ marginTop: 10 }} onPress={logout} />
     </ScrollView>
   );
 }

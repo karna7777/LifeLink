@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import Button from '../../components/Button';
 import { COLORS } from '../../utils/constants';
-import { useDevAuth } from '../../navigation/RootNavigator';
+import { useAuth } from '../../context/AuthContext';
 
 // Admin overview stats. Real counts arrive from /admin/stats in Phase 3.
 const STATS = [
@@ -12,7 +12,7 @@ const STATS = [
 ];
 
 export default function AdminStatsScreen() {
-  const { setRole } = useDevAuth();
+  const { logout } = useAuth();
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
       <Text style={styles.title}>Platform stats</Text>
@@ -24,7 +24,7 @@ export default function AdminStatsScreen() {
           </View>
         ))}
       </View>
-      <Button title="Logout" variant="outline" style={{ marginTop: 24 }} onPress={() => setRole(null)} />
+      <Button title="Logout" variant="outline" style={{ marginTop: 24 }} onPress={logout} />
     </ScrollView>
   );
 }

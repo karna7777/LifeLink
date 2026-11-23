@@ -22,6 +22,10 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'LifeLink API' });
 });
 
+// --- API routes (more are mounted in later phases) ---
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users'));
+
 // Express and Socket.io must share one HTTP server so they run on the same port.
 const server = http.createServer(app);
 

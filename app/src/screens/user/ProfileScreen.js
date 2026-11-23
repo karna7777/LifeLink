@@ -1,23 +1,37 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Switch, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Switch, Alert, StyleSheet } from 'react-native';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import BloodGroupPicker from '../../components/BloodGroupPicker';
 import { COLORS } from '../../utils/constants';
-import { useDevAuth } from '../../navigation/RootNavigator';
+import { useAuth } from '../../context/AuthContext';
+import api from '../../services/api';
 
-// User profile: blood group, donor toggles, location, logout.
-// Editing/saving is wired up in Phase 2.
+// User profile: shows real user, edits blood group + donor toggles, saves to the server.
 export default function ProfileScreen() {
-  const { setRole } = useDevAuth();
-  const [bloodGroup, setBloodGroup] = useState('B+');
-  const [isDonor, setIsDonor] = useState(true);
-  const [isAvailable, setIsAvailable] = useState(false);
+  const { user, logout, updateUser } = useAuth();
+  const [bloodGroup, setBloodGroup] = useState(user?.bloodGroup || null);
+  const [isDonor, setIsDonor] = useState(user?.isDonor || false);
+  const [isAvailable, setIsAvailable] = useState(user?.isAvailable || false);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const { data } = await api.put('/users/me', { bloodGroup, isDonor, isAvailable });
+      await updateUser(data); // keep context + storage in sync
+      Alert.alert('Saved', 'Your profile has been updated.');
+    } catch (err) {
+      Alert.alert('Could not save', err.response?.data?.message || 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
-      <Text style={styles.name}>Demo User</Text>
-      <Text style={styles.muted}>demo@lifelink.app</Text>
+      <Text style={styles.name}>{user?.name}</Text>
+      <Text style={styles.muted}>{user?.email}</Text>
 
       <Text style={styles.section}>Blood group</Text>
       <BloodGroupPicker value={bloodGroup} onChange={setBloodGroup} />
@@ -33,8 +47,8 @@ export default function ProfileScreen() {
         </View>
       </Card>
 
-      <Button title="Update my location" variant="outline" style={{ marginTop: 16 }} onPress={() => {}} />
-      <Button title="Logout" style={{ marginTop: 10 }} onPress={() => setRole(null)} />
+      <Button title="Save profile" loading={saving} style={{ marginTop: 16 }} onPress={save} />
+      <Button title="Logout" variant="outline" style={{ marginTop: 10 }} onPress={logout} />
     </ScrollView>
   );
 }

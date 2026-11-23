@@ -1,18 +1,49 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import BloodGroupPicker from '../../components/BloodGroupPicker';
 import { COLORS } from '../../utils/constants';
+import { useAuth } from '../../context/AuthContext';
 
-// Register screen. Account creation is wired up in Phase 2.
+// Register screen — calls the real /auth/register via AuthContext.
 export default function RegisterScreen({ navigation }) {
+  const { register } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState('user'); // 'user' or 'staff'
   const [bloodGroup, setBloodGroup] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  async function onRegister() {
+    if (!name || !email || !password) {
+      return Alert.alert('Missing info', 'Name, email and password are required.');
+    }
+    if (password.length < 6) {
+      return Alert.alert('Weak password', 'Password must be at least 6 characters.');
+    }
+    if (role === 'user' && !bloodGroup) {
+      return Alert.alert('Blood group', 'Please select your blood group.');
+    }
+    setLoading(true);
+    try {
+      await register({
+        name,
+        email: email.trim().toLowerCase(),
+        password,
+        phone,
+        role,
+        bloodGroup: role === 'user' ? bloodGroup : undefined,
+      });
+      // On success RootNavigator switches to the role's screens automatically.
+    } catch (err) {
+      Alert.alert('Registration failed', err.response?.data?.message || 'Could not reach the server.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
@@ -21,16 +52,12 @@ export default function RegisterScreen({ navigation }) {
       <Input label="Full name" value={name} onChangeText={setName} placeholder="Your name" />
       <Input label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" />
       <Input label="Phone" value={phone} onChangeText={setPhone} placeholder="Phone number" keyboardType="phone-pad" />
-      <Input label="Password" value={password} onChangeText={setPassword} placeholder="Create a password" secureTextEntry />
+      <Input label="Password" value={password} onChangeText={setPassword} placeholder="At least 6 characters" secureTextEntry />
 
       <Text style={styles.label}>I am a</Text>
       <View style={styles.roleRow}>
         {['user', 'staff'].map((r) => (
-          <TouchableOpacity
-            key={r}
-            style={[styles.roleChip, role === r && styles.roleActive]}
-            onPress={() => setRole(r)}
-          >
+          <TouchableOpacity key={r} style={[styles.roleChip, role === r && styles.roleActive]} onPress={() => setRole(r)}>
             <Text style={[styles.roleText, role === r && styles.roleTextActive]}>
               {r === 'user' ? 'Patient / Donor' : 'Facility staff'}
             </Text>
@@ -45,7 +72,7 @@ export default function RegisterScreen({ navigation }) {
         </>
       )}
 
-      <Button title="Register" style={{ marginTop: 20 }} onPress={() => {}} />
+      <Button title="Register" loading={loading} style={{ marginTop: 20 }} onPress={onRegister} />
       <Button title="Back to login" variant="outline" style={{ marginTop: 10 }} onPress={() => navigation.goBack()} />
     </ScrollView>
   );
