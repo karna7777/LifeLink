@@ -3,8 +3,8 @@ const Inventory = require('../models/Inventory');
 const User = require('../models/User');
 const { notifyUser } = require('../utils/notify');
 
-// Finds items that are expired or expiring within 7 days.
-// In Phase 8 this also sends Expo push notifications + saves Notification docs for staff.
+// Finds items that are expired or expiring within 7 days, then notifies each
+// facility's staff (saves a Notification + sends a push).
 async function runExpiryCheck() {
   const now = new Date();
   const soon = new Date();

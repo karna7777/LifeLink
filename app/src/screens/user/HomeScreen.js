@@ -1,22 +1,40 @@
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Card from '../../components/Card';
 import StatusBadge from '../../components/StatusBadge';
 import { COLORS, BLOOD_GROUPS } from '../../utils/constants';
+import { useAuth } from '../../context/AuthContext';
+import api from '../../services/api';
 
-// User home: greeting, quick blood-group search, active requests, urgent alerts.
-// Data here is dummy; Phase 5/6 replace it with real API calls.
-const DUMMY_ACTIVE = [
-  { id: '1', title: 'B+ Whole Blood', facility: 'City Hospital', status: 'pending' },
-  { id: '2', title: 'Paracetamol', facility: 'Apollo Pharmacy', status: 'approved' },
-];
+// Readable label for a request.
+const label = (r) => (r.itemType === 'blood' ? `${r.bloodGroup || ''} ${r.component || ''}`.trim() : r.medicineName);
 
+// User home: greeting, quick search shortcuts, and the user's active requests.
 export default function HomeScreen({ navigation }) {
+  const { user } = useAuth();
+  const [active, setActive] = useState([]);
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await api.get('/requests/mine');
+      // "Active" = still in progress (pending or approved).
+      setActive(data.filter((r) => r.status === 'pending' || r.status === 'approved'));
+    } catch (err) {
+      // ignore — the Requests tab shows the full list
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const firstName = user?.name ? user.name.split(' ')[0] : 'there';
+
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
-      <Text style={styles.hello}>Hi there 👋</Text>
+      <Text style={styles.hello}>Hi {firstName} 👋</Text>
       <Text style={styles.sub}>What do you need today?</Text>
 
-      <Text style={styles.section}>Quick blood search</Text>
+      <Text style={styles.section}>Quick search</Text>
       <View style={styles.chips}>
         {BLOOD_GROUPS.map((g) => (
           <TouchableOpacity key={g} style={styles.chip} onPress={() => navigation.navigate('Search')}>
@@ -26,20 +44,23 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       <Text style={styles.section}>My active requests</Text>
-      {DUMMY_ACTIVE.map((r) => (
-        <Card key={r.id}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.cardTitle}>{r.title}</Text>
-            <StatusBadge status={r.status} />
-          </View>
-          <Text style={styles.muted}>{r.facility}</Text>
-        </Card>
-      ))}
+      {active.length === 0 ? (
+        <Text style={styles.muted}>No active requests right now.</Text>
+      ) : (
+        active.map((r) => (
+          <Card key={r._id} onPress={() => navigation.navigate('Requests', { screen: 'RequestDetail', params: { id: r._id } })}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.cardTitle}>{label(r)} ×{r.quantity}</Text>
+              <StatusBadge status={r.status} />
+            </View>
+            <Text style={styles.urgency}>{r.urgency} urgency</Text>
+          </Card>
+        ))
+      )}
 
-      <Text style={styles.section}>Urgent alerts</Text>
-      <Card>
-        <Text style={styles.cardTitle}>🩸 O- needed at City Hospital</Text>
-        <Text style={styles.muted}>2.4 km away · tap to help (donor alerts in Phase 8)</Text>
+      <Card style={{ marginTop: 20 }} onPress={() => navigation.navigate('Notifications')}>
+        <Text style={styles.cardTitle}>🔔 View your notifications</Text>
+        <Text style={styles.muted}>Status updates, messages and urgent alerts</Text>
       </Card>
     </ScrollView>
   );
@@ -56,4 +77,5 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
   muted: { color: COLORS.textMuted, marginTop: 4 },
+  urgency: { color: COLORS.textMuted, marginTop: 4, textTransform: 'capitalize' },
 });

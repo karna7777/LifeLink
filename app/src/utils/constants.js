@@ -30,6 +30,3 @@ export const FACILITY_TYPES = ['hospital', 'blood_bank', 'pharmacy'];
 
 // How urgent a request is.
 export const URGENCY_LEVELS = ['normal', 'urgent', 'critical'];
-
-// The lifecycle a request moves through.
-export const REQUEST_STATUS = ['pending', 'approved', 'rejected', 'fulfilled', 'cancelled'];

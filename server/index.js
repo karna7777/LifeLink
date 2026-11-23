@@ -1,6 +1,6 @@
 // LifeLink server entry point.
-// Phase 0: Express app + MongoDB connection + Socket.io skeleton + health route.
-// Routes, socket handlers, and the cron job are added in later phases.
+// Sets up Express, mounts the API routes, connects to MongoDB, starts Socket.io,
+// and schedules the daily expiry check.
 
 require('dotenv').config();
 const express = require('express');
