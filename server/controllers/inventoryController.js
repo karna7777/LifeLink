@@ -36,6 +36,7 @@ exports.addItem = async (req, res) => {
     }
 
     const item = await Inventory.create({ facilityId, itemType, bloodGroup, component, name, quantity, unit, batchNo, expiryDate });
+    req.app.get('io').to('facility:' + facilityId).emit('inventory:updated', item);
     res.status(201).json(item);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -59,6 +60,7 @@ exports.updateItem = async (req, res) => {
       return res.status(400).json({ message: 'Quantity must be greater than 0' });
     }
     await item.save();
+    req.app.get('io').to('facility:' + req.user.facilityId).emit('inventory:updated', item);
     res.json(item);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -74,6 +76,7 @@ exports.deleteItem = async (req, res) => {
       return res.status(403).json({ message: 'This item belongs to another facility' });
     }
     await item.deleteOne();
+    req.app.get('io').to('facility:' + req.user.facilityId).emit('inventory:updated', { deleted: item._id });
     res.json({ message: 'Item deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });

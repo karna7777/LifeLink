@@ -29,18 +29,16 @@ app.use('/api/facilities', require('./routes/facilities'));
 app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/search', require('./routes/search'));
 app.use('/api/requests', require('./routes/requests'));
+app.use('/api/messages', require('./routes/messages'));
 app.use('/api/admin', require('./routes/admin'));
 
 // Express and Socket.io must share one HTTP server so they run on the same port.
 const server = http.createServer(app);
 
-// Socket.io skeleton. Rooms and events (request:new, message:new, ...) come later.
+// Socket.io for real-time updates + chat.
 const io = new Server(server, { cors: { origin: '*' } });
-io.on('connection', (socket) => {
-  console.log('🔌 Socket connected:', socket.id);
-  socket.on('disconnect', () => console.log('🔌 Socket disconnected:', socket.id));
-});
-// Store io on the app so route handlers can emit events in later phases.
+require('./socket')(io); // verify tokens, join rooms, handle chat room join/leave
+// Store io on the app so route handlers can emit events.
 app.set('io', io);
 
 const PORT = process.env.PORT || 5000;

@@ -29,6 +29,9 @@ exports.createRequest = async (req, res) => {
       statusHistory: [{ status: 'pending', by: req.user._id }],
     });
 
+    // Notify the facility's staff in real time about the new request.
+    req.app.get('io').to('facility:' + facilityId).emit('request:new', request);
+
     res.status(201).json(request);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -84,6 +87,11 @@ exports.updateStatus = async (req, res) => {
     request.status = status;
     request.statusHistory.push({ status, by: req.user._id });
     await request.save();
+
+    // Push the status change to the requester and anyone viewing this request.
+    const io = req.app.get('io');
+    io.to('user:' + request.userId).emit('request:status', { requestId: request._id, status });
+    io.to('request:' + request._id).emit('request:status', { requestId: request._id, status });
 
     res.json(request);
   } catch (err) {
