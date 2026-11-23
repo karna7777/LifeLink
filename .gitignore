@@ -1,0 +1,23 @@
+# === LifeLink root .gitignore ===
+
+# Dependencies (never committed — reinstalled with npm install)
+node_modules/
+
+# Environment secrets (MONGO_URI, JWT_SECRET live here)
+.env
+**/.env
+
+# Uploaded images (prescription + chat photos) — not source code
+server/uploads/
+uploads/
+
+# Expo / React Native build output and caches
+app/.expo/
+app/dist/
+app/web-build/
+app/.expo-shared/
+
+# Logs and OS files
+*.log
+npm-debug.*
+.DS_Store
