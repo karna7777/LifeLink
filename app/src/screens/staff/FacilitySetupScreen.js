@@ -6,6 +6,7 @@ import Loader from '../../components/Loader';
 import { COLORS, FACILITY_TYPES } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
+import { getCurrentLocation } from '../../services/location';
 
 // Create (first time) or edit the staff member's facility.
 // Shown full-screen when staff has no facility yet, and as the staff "Profile" tab after.
@@ -13,15 +14,15 @@ export default function FacilitySetupScreen() {
   const { user, logout, updateUser } = useAuth();
   const hasFacility = !!user?.facilityId;
 
-  const [loading, setLoading] = useState(hasFacility); // load existing facility first
+  const [loading, setLoading] = useState(hasFacility);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState('');
   const [type, setType] = useState('hospital');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [verified, setVerified] = useState(false);
+  const [location, setLocation] = useState(null); // { lat, lng } — used so the facility shows up in search
 
-  // If the staff already has a facility, load it into the form.
   useEffect(() => {
     if (!hasFacility) return;
     (async () => {
@@ -32,6 +33,7 @@ export default function FacilitySetupScreen() {
         setAddress(data.address || '');
         setPhone(data.phone || '');
         setVerified(data.verified);
+        setLocation(data.location || null);
       } catch (err) {
         Alert.alert('Error', 'Could not load your facility.');
       } finally {
@@ -40,18 +42,24 @@ export default function FacilitySetupScreen() {
     })();
   }, []);
 
+  async function captureLocation() {
+    const loc = await getCurrentLocation();
+    if (!loc) return Alert.alert('Location', 'Permission denied or location unavailable.');
+    setLocation(loc);
+  }
+
   async function save() {
     if (!name) return Alert.alert('Missing info', 'Facility name is required.');
     setSaving(true);
     try {
+      const body = { name, type, address, phone, location: location || undefined };
       if (hasFacility) {
-        const { data } = await api.put('/facilities/' + user.facilityId, { name, type, address, phone });
+        const { data } = await api.put('/facilities/' + user.facilityId, body);
         setVerified(data.verified);
         Alert.alert('Saved', 'Facility updated.');
       } else {
-        await api.post('/facilities', { name, type, address, phone });
-        // Refresh the user so facilityId is set — the app then shows the staff tabs.
-        const { data } = await api.get('/users/me');
+        await api.post('/facilities', body);
+        const { data } = await api.get('/users/me'); // refresh so facilityId is set
         await updateUser(data);
         Alert.alert('Created', 'Facility created. Waiting for admin verification.');
       }
@@ -87,6 +95,12 @@ export default function FacilitySetupScreen() {
       <Input label="Address" value={address} onChangeText={setAddress} placeholder="Full address" multiline />
       <Input label="Phone" value={phone} onChangeText={setPhone} placeholder="Contact number" keyboardType="phone-pad" />
 
+      <TouchableOpacity style={styles.locBtn} onPress={captureLocation}>
+        <Text style={styles.locText}>
+          📍 {location ? `Location set (${location.lat.toFixed(4)}, ${location.lng.toFixed(4)})` : 'Use my current location'}
+        </Text>
+      </TouchableOpacity>
+
       <Button title={hasFacility ? 'Save changes' : 'Create facility'} loading={saving} style={{ marginTop: 10 }} onPress={save} />
       <Button title="Logout" variant="outline" style={{ marginTop: 10 }} onPress={logout} />
     </ScrollView>
@@ -103,4 +117,6 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: COLORS.primary },
   chipText: { color: COLORS.primary, fontWeight: '700', textTransform: 'capitalize' },
   chipTextActive: { color: COLORS.white },
+  locBtn: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 4 },
+  locText: { color: COLORS.text, fontWeight: '600' },
 });

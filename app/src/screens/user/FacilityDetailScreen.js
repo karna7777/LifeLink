@@ -1,38 +1,78 @@
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, ScrollView, Alert, Linking, StyleSheet } from 'react-native';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import ExpiryBadge from '../../components/ExpiryBadge';
+import EmptyState from '../../components/EmptyState';
+import Loader from '../../components/Loader';
 import { COLORS } from '../../utils/constants';
+import api from '../../services/api';
 
-// Facility details + its available stock. Data is dummy in Phase 1.
-const DUMMY_STOCK = [
-  { id: '1', label: 'B+ Whole Blood', qty: '12 units', expiry: '2026-12-10' },
-  { id: '2', label: 'O- Plasma', qty: '4 units', expiry: '2026-11-28' },
-];
+const itemLabel = (i) => (i.itemType === 'blood' ? `${i.bloodGroup || ''} ${i.component || ''}`.trim() : i.name);
 
+// Facility details + its live stock, loaded from the server.
 export default function FacilityDetailScreen({ route, navigation }) {
-  const name = route.params?.name || 'Facility';
+  const id = route.params?.id;
+  const [facility, setFacility] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await api.get('/facilities/' + id);
+        setFacility(data);
+      } catch (err) {
+        Alert.alert('Error', 'Could not load this facility.');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [id]);
+
+  // Open the facility's coordinates in the device's maps app (no maps SDK needed).
+  function openMaps() {
+    const loc = facility?.location;
+    if (!loc?.lat) return Alert.alert('No location', 'This facility has no saved location.');
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}`);
+  }
+
+  if (loading) return <Loader text="Loading facility…" />;
+  if (!facility) return <EmptyState title="Facility not found" />;
+
+  const stock = (facility.inventory || []).filter((i) => i.quantity > 0);
 
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
-      <Text style={styles.name}>{name}</Text>
-      <Text style={styles.muted}>Hospital · 2.4 km away</Text>
-      <Text style={styles.muted}>📞 +91 98765 43210</Text>
+      <Text style={styles.name}>{facility.name}</Text>
+      <Text style={styles.muted}>
+        {facility.type?.replace('_', ' ')}
+        {facility.verified ? ' · ✓ Verified' : ''}
+      </Text>
+      {facility.address ? <Text style={styles.muted}>{facility.address}</Text> : null}
+      {facility.phone ? <Text style={styles.muted}>📞 {facility.phone}</Text> : null}
 
-      <Button title="Open in Maps" variant="outline" style={{ marginTop: 14 }} onPress={() => {}} />
+      <Button title="Open in Maps" variant="outline" style={{ marginTop: 14 }} onPress={openMaps} />
 
       <Text style={styles.section}>Available stock</Text>
-      {DUMMY_STOCK.map((s) => (
-        <Card key={s.id}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.itemTitle}>{s.label}</Text>
-            <ExpiryBadge expiryDate={s.expiry} />
-          </View>
-          <Text style={styles.muted}>{s.qty}</Text>
-        </Card>
-      ))}
+      {stock.length === 0 ? (
+        <EmptyState title="No stock listed" message="This facility hasn't listed any stock yet." />
+      ) : (
+        stock.map((s) => (
+          <Card key={s._id}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.itemTitle}>{itemLabel(s)}</Text>
+              <ExpiryBadge expiryDate={s.expiryDate} />
+            </View>
+            <Text style={styles.muted}>{s.quantity} {s.unit}</Text>
+          </Card>
+        ))
+      )}
 
-      <Button title="Create request" style={{ marginTop: 10 }} onPress={() => navigation.navigate('CreateRequest', { facilityName: name })} />
+      <Button
+        title="Create request"
+        style={{ marginTop: 10 }}
+        onPress={() => navigation.navigate('CreateRequest', { facilityId: facility._id, facilityName: facility.name })}
+      />
     </ScrollView>
   );
 }

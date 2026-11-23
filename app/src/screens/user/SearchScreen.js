@@ -1,55 +1,77 @@
 import { useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import Input from '../../components/Input';
+import Button from '../../components/Button';
 import Card from '../../components/Card';
 import EmptyState from '../../components/EmptyState';
+import Loader from '../../components/Loader';
 import { COLORS } from '../../utils/constants';
+import api from '../../services/api';
+import { getCurrentLocation } from '../../services/location';
 
-// Search for blood or medicine nearby. Results are dummy in Phase 1;
-// Phase 5 adds the real /search API with distance sorting.
-const DUMMY_RESULTS = [
-  { id: '1', name: 'City Hospital', distance: '2.4 km', available: '12 units' },
-  { id: '2', name: 'Red Cross Blood Bank', distance: '3.1 km', available: '5 units' },
-  { id: '3', name: 'Apollo Pharmacy', distance: '0.8 km', available: '30 strips' },
-];
-
+// Search nearby verified facilities that have the blood/medicine in stock.
 export default function SearchScreen({ navigation }) {
   const [mode, setMode] = useState('blood'); // 'blood' or 'medicine'
   const [query, setQuery] = useState('');
+  const [results, setResults] = useState(null); // null = not searched yet
+  const [loading, setLoading] = useState(false);
+
+  async function runSearch() {
+    if (!query.trim()) {
+      return Alert.alert('Enter a value', mode === 'blood' ? 'Enter a blood group, e.g. B+' : 'Enter a medicine name');
+    }
+    setLoading(true);
+    try {
+      const loc = await getCurrentLocation(); // null if permission denied — search still works
+      const params = new URLSearchParams({ type: mode });
+      if (mode === 'blood') params.append('bloodGroup', query.trim().toUpperCase());
+      else params.append('name', query.trim());
+      if (loc) {
+        params.append('lat', loc.lat);
+        params.append('lng', loc.lng);
+      }
+      const { data } = await api.get('/search?' + params.toString());
+      setResults(data);
+    } catch (err) {
+      Alert.alert('Search failed', err.response?.data?.message || 'Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <View style={styles.wrap}>
       <View style={styles.toggle}>
         {['blood', 'medicine'].map((m) => (
-          <TouchableOpacity
-            key={m}
-            style={[styles.toggleBtn, mode === m && styles.toggleActive]}
-            onPress={() => setMode(m)}
-          >
-            <Text style={[styles.toggleText, mode === m && styles.toggleTextActive]}>
-              {m === 'blood' ? 'Blood' : 'Medicine'}
-            </Text>
+          <TouchableOpacity key={m} style={[styles.toggleBtn, mode === m && styles.toggleActive]} onPress={() => setMode(m)}>
+            <Text style={[styles.toggleText, mode === m && styles.toggleTextActive]}>{m === 'blood' ? 'Blood' : 'Medicine'}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <Input
-        value={query}
-        onChangeText={setQuery}
-        placeholder={mode === 'blood' ? 'Blood group e.g. B+' : 'Medicine name e.g. Paracetamol'}
-      />
+      <Input value={query} onChangeText={setQuery} placeholder={mode === 'blood' ? 'Blood group e.g. B+' : 'Medicine name e.g. Paracetamol'} />
+      <Button title="Search nearby" loading={loading} onPress={runSearch} />
 
-      <FlatList
-        data={DUMMY_RESULTS}
-        keyExtractor={(item) => item.id}
-        ListEmptyComponent={<EmptyState title="No facilities found" message="Try a different search." />}
-        renderItem={({ item }) => (
-          <Card onPress={() => navigation.navigate('FacilityDetail', { id: item.id, name: item.name })}>
-            <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.muted}>{item.distance} away · {item.available} available</Text>
-          </Card>
-        )}
-      />
+      {loading ? (
+        <Loader text="Searching…" />
+      ) : results == null ? (
+        <EmptyState title="Find supplies nearby" message="Pick blood or medicine, then search." />
+      ) : (
+        <FlatList
+          data={results}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={{ paddingTop: 16 }}
+          ListEmptyComponent={<EmptyState title="No facilities found" message="No verified facility nearby has this in stock." />}
+          renderItem={({ item }) => (
+            <Card onPress={() => navigation.navigate('FacilityDetail', { id: item._id, name: item.name })}>
+              <Text style={styles.name}>{item.name}</Text>
+              <Text style={styles.muted}>
+                {item.distanceKm != null ? `${item.distanceKm} km away` : 'distance unavailable'} · {item.available} {item.unit} available
+              </Text>
+            </Card>
+          )}
+        />
+      )}
     </View>
   );
 }

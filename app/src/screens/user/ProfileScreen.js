@@ -5,26 +5,44 @@ import Button from '../../components/Button';
 import BloodGroupPicker from '../../components/BloodGroupPicker';
 import { COLORS } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
+import { getCurrentLocation } from '../../services/location';
 import api from '../../services/api';
 
-// User profile: shows real user, edits blood group + donor toggles, saves to the server.
+// User profile: shows real user, edits blood group + donor toggles + location, saves to the server.
 export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
   const [bloodGroup, setBloodGroup] = useState(user?.bloodGroup || null);
   const [isDonor, setIsDonor] = useState(user?.isDonor || false);
   const [isAvailable, setIsAvailable] = useState(user?.isAvailable || false);
   const [saving, setSaving] = useState(false);
+  const [locating, setLocating] = useState(false);
 
   async function save() {
     setSaving(true);
     try {
       const { data } = await api.put('/users/me', { bloodGroup, isDonor, isAvailable });
-      await updateUser(data); // keep context + storage in sync
+      await updateUser(data);
       Alert.alert('Saved', 'Your profile has been updated.');
     } catch (err) {
       Alert.alert('Could not save', err.response?.data?.message || 'Please try again.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Capture current location and save it — used for donor alerts in later phases.
+  async function updateLocation() {
+    setLocating(true);
+    try {
+      const loc = await getCurrentLocation();
+      if (!loc) return Alert.alert('Location', 'Permission denied or location unavailable.');
+      const { data } = await api.put('/users/me', { location: loc });
+      await updateUser(data);
+      Alert.alert('Saved', 'Your location has been updated.');
+    } catch (err) {
+      Alert.alert('Could not save', err.response?.data?.message || 'Please try again.');
+    } finally {
+      setLocating(false);
     }
   }
 
@@ -48,6 +66,7 @@ export default function ProfileScreen() {
       </Card>
 
       <Button title="Save profile" loading={saving} style={{ marginTop: 16 }} onPress={save} />
+      <Button title="Update my location" variant="outline" loading={locating} style={{ marginTop: 10 }} onPress={updateLocation} />
       <Button title="Logout" variant="outline" style={{ marginTop: 10 }} onPress={logout} />
     </ScrollView>
   );
