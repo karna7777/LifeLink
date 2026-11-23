@@ -26,6 +26,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/facilities', require('./routes/facilities'));
+app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/admin', require('./routes/admin'));
 
 // Express and Socket.io must share one HTTP server so they run on the same port.
@@ -46,8 +47,13 @@ const PORT = process.env.PORT || 5000;
 // then try to connect to MongoDB and report the result.
 server.listen(PORT, () => {
   console.log(`🚀 LifeLink server running on port ${PORT}`);
-  connectDB().catch((err) => {
-    console.warn('⚠️  MongoDB not connected:', err.message);
-    console.warn('   The server is still running, but database routes will fail until this is fixed.');
-  });
+  connectDB()
+    .then(() => {
+      // Start the daily expiry check once the database is connected.
+      require('./jobs/expiryCheck').startExpiryJob();
+    })
+    .catch((err) => {
+      console.warn('⚠️  MongoDB not connected:', err.message);
+      console.warn('   The server is still running, but database routes will fail until this is fixed.');
+    });
 });

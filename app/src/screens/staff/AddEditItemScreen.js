@@ -1,20 +1,74 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import BloodGroupPicker from '../../components/BloodGroupPicker';
 import { COLORS, BLOOD_COMPONENTS } from '../../utils/constants';
+import api from '../../services/api';
 
-// Add or edit an inventory item. Saving is wired up in Phase 4.
+const UNITS = ['units', 'strips', 'bottles'];
+
+// Add a new stock item or edit/delete an existing one.
 export default function AddEditItemScreen({ route, navigation }) {
   const existing = route.params?.item;
-  const [itemType, setItemType] = useState(existing?.type || 'blood');
-  const [name, setName] = useState('');
-  const [bloodGroup, setBloodGroup] = useState(null);
-  const [component, setComponent] = useState(BLOOD_COMPONENTS[0]);
-  const [quantity, setQuantity] = useState('');
-  const [batchNo, setBatchNo] = useState('');
-  const [expiry, setExpiry] = useState('');
+
+  const [itemType, setItemType] = useState(existing?.itemType || 'blood');
+  const [bloodGroup, setBloodGroup] = useState(existing?.bloodGroup || null);
+  const [component, setComponent] = useState(existing?.component || BLOOD_COMPONENTS[0]);
+  const [name, setName] = useState(existing?.name || '');
+  const [quantity, setQuantity] = useState(existing ? String(existing.quantity) : '');
+  const [unit, setUnit] = useState(existing?.unit || 'units');
+  const [batchNo, setBatchNo] = useState(existing?.batchNo || '');
+  const [expiry, setExpiry] = useState(existing?.expiryDate ? existing.expiryDate.slice(0, 10) : '');
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    // Client-side validation mirrors the server rules.
+    const qty = Number(quantity);
+    if (!qty || qty <= 0) return Alert.alert('Quantity', 'Enter a quantity greater than 0.');
+    if (itemType === 'blood' && !bloodGroup) return Alert.alert('Blood group', 'Select a blood group.');
+    if (itemType === 'medicine' && !name) return Alert.alert('Medicine name', 'Enter the medicine name.');
+
+    const body = {
+      itemType,
+      quantity: qty,
+      unit,
+      batchNo,
+      expiryDate: expiry || undefined,
+      bloodGroup: itemType === 'blood' ? bloodGroup : undefined,
+      component: itemType === 'blood' ? component : undefined,
+      name: itemType === 'medicine' ? name : undefined,
+    };
+
+    setSaving(true);
+    try {
+      if (existing) await api.put('/inventory/' + existing._id, body);
+      else await api.post('/inventory', body);
+      navigation.goBack(); // InventoryScreen refetches on focus
+    } catch (err) {
+      Alert.alert('Could not save', err.response?.data?.message || 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function confirmDelete() {
+    Alert.alert('Delete item', 'Remove this item from inventory?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.delete('/inventory/' + existing._id);
+            navigation.goBack();
+          } catch (err) {
+            Alert.alert('Could not delete', err.response?.data?.message || 'Please try again.');
+          }
+        },
+      },
+    ]);
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
@@ -46,10 +100,21 @@ export default function AddEditItemScreen({ route, navigation }) {
       )}
 
       <Input label="Quantity" value={quantity} onChangeText={setQuantity} placeholder="e.g. 12" keyboardType="number-pad" />
+
+      <Text style={styles.label}>Unit</Text>
+      <View style={styles.row}>
+        {UNITS.map((u) => (
+          <TouchableOpacity key={u} style={[styles.chip, unit === u && styles.chipActive]} onPress={() => setUnit(u)}>
+            <Text style={[styles.chipText, unit === u && styles.chipTextActive]}>{u}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <Input label="Batch number" value={batchNo} onChangeText={setBatchNo} placeholder="e.g. B-2291" />
       <Input label="Expiry date" value={expiry} onChangeText={setExpiry} placeholder="YYYY-MM-DD" />
 
-      <Button title="Save item" style={{ marginTop: 10 }} onPress={() => navigation.goBack()} />
+      <Button title={existing ? 'Save changes' : 'Add item'} loading={saving} style={{ marginTop: 10 }} onPress={save} />
+      {existing && <Button title="Delete item" variant="outline" style={{ marginTop: 10 }} onPress={confirmDelete} />}
     </ScrollView>
   );
 }

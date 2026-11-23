@@ -1,5 +1,6 @@
 const Facility = require('../models/Facility');
 const User = require('../models/User');
+const Inventory = require('../models/Inventory');
 
 // POST /api/facilities — a staff member creates their one facility.
 exports.createFacility = async (req, res) => {
@@ -23,12 +24,13 @@ exports.createFacility = async (req, res) => {
   }
 };
 
-// GET /api/facilities/:id — facility details (inventory is attached in Phase 4).
+// GET /api/facilities/:id — facility details plus its current inventory.
 exports.getFacility = async (req, res) => {
   try {
     const facility = await Facility.findById(req.params.id);
     if (!facility) return res.status(404).json({ message: 'Facility not found' });
-    res.json(facility);
+    const inventory = await Inventory.find({ facilityId: facility._id }).sort({ expiryDate: 1 });
+    res.json({ ...facility.toObject(), inventory });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

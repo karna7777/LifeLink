@@ -1,22 +1,40 @@
-import { useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, Text, FlatList, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import ExpiryBadge from '../../components/ExpiryBadge';
 import EmptyState from '../../components/EmptyState';
+import Loader from '../../components/Loader';
 import { COLORS } from '../../utils/constants';
+import api from '../../services/api';
 
-// Facility inventory with blood/medicine filter. CRUD arrives in Phase 4.
-const DUMMY_ITEMS = [
-  { id: '1', type: 'blood', label: 'B+ Whole Blood', qty: '12 units', expiry: '2026-12-20' },
-  { id: '2', type: 'blood', label: 'O- Plasma', qty: '4 units', expiry: '2026-11-27' },
-  { id: '3', type: 'medicine', label: 'Paracetamol', qty: '30 strips', expiry: '2027-03-01' },
-  { id: '4', type: 'medicine', label: 'Insulin', qty: '8 bottles', expiry: '2026-11-24' },
-];
+// Build a readable label from a stock item.
+const itemLabel = (i) => (i.itemType === 'blood' ? `${i.bloodGroup || ''} ${i.component || ''}`.trim() : i.name);
 
+// Facility inventory list with a blood/medicine filter. Taps open the add/edit screen.
 export default function InventoryScreen({ navigation }) {
+  const [items, setItems] = useState([]);
   const [filter, setFilter] = useState('all'); // all | blood | medicine
-  const items = filter === 'all' ? DUMMY_ITEMS : DUMMY_ITEMS.filter((i) => i.type === filter);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await api.get('/inventory');
+      setItems(data);
+    } catch (err) {
+      Alert.alert('Error', 'Could not load inventory.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Refetch every time the screen comes into focus (e.g. after adding an item).
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const shown = filter === 'all' ? items : items.filter((i) => i.itemType === filter);
+
+  if (loading) return <Loader text="Loading inventory…" />;
 
   return (
     <View style={styles.wrap}>
@@ -29,17 +47,17 @@ export default function InventoryScreen({ navigation }) {
       </View>
 
       <FlatList
-        data={items}
-        keyExtractor={(item) => item.id}
+        data={shown}
+        keyExtractor={(item) => item._id}
         contentContainerStyle={{ paddingBottom: 90 }}
-        ListEmptyComponent={<EmptyState title="No items" message="Add your first stock item." />}
+        ListEmptyComponent={<EmptyState title="No items" message="Tap “Add item” to add your first stock item." />}
         renderItem={({ item }) => (
           <Card onPress={() => navigation.navigate('AddEditItem', { item })}>
             <View style={styles.rowBetween}>
-              <Text style={styles.itemTitle}>{item.label}</Text>
-              <ExpiryBadge expiryDate={item.expiry} />
+              <Text style={styles.itemTitle}>{itemLabel(item)}</Text>
+              <ExpiryBadge expiryDate={item.expiryDate} />
             </View>
-            <Text style={styles.muted}>{item.qty}</Text>
+            <Text style={styles.muted}>{item.quantity} {item.unit}{item.batchNo ? ` · batch ${item.batchNo}` : ''}</Text>
           </Card>
         )}
       />
